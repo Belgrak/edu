@@ -5,14 +5,16 @@ from data.books import Books
 from data.users import User
 from telegram import ReplyKeyboardMarkup
 
-TOKEN = 'google'
+from parser_wiki import parse_about_skill
+
+TOKEN = 'guest'
 
 # All KeyBoards -------------------------------------------------------------------------------------------
 
-main_keyboard = [['Мои книги']]
+main_keyboard = [['Мои книги', 'Получить навык']]
 main_markup = ReplyKeyboardMarkup(main_keyboard, one_time_keyboard=False)
 
-library_keyboard = [['Добавить книгу', 'Удалить книгу'],
+library_keyboard = [['Добавить книгу', 'Посмотреть книги', 'Удалить книгу'],
                     ['Меню']]
 library_markup = ReplyKeyboardMarkup(library_keyboard, one_time_keyboard=False)
 
@@ -50,6 +52,7 @@ def back_to_menu(update, context):
 
 
 # --------------------------------------------------------------------------------------------------------------------
+# =====================================================================================================================
 # Showing All User Books
 
 
@@ -58,8 +61,8 @@ def library(update, context):
     user = db_ses.query(User).filter(User.id == update.effective_user.id).first()
     if db_ses.query(Books).filter(Books.user == user).all():
         update.message.reply_text('Ваши книги:', reply_markup=library_markup)
-        for i in db_ses.query(Books).filter(Books.user == user):
-            update.message.reply_text(str(i.id) + ' ' + i.title, reply_markup=library_markup)
+        for n, i in enumerate(db_ses.query(Books).filter(Books.user == user)):
+            update.message.reply_text(str(n + 1) + ' ' + i.title, reply_markup=library_markup)
     else:
         name = user.first_name
         update.message.reply_text(name + ', ' + 'У вас пока нет книг...', reply_markup=library_markup)
@@ -74,6 +77,17 @@ def library_commands(update, context):
         update.message.reply_text('Пожалуйста введите название книги',
                                   reply_markup=just_menu_markup)
         return 2
+    elif update.message.text == 'Посмотреть книги':
+        db_ses = db_session.create_session()
+        user = db_ses.query(User).filter(User.id == update.effective_user.id).first()
+        if db_ses.query(Books).filter(Books.user == user).all():
+            update.message.reply_text('Ваши книги:', reply_markup=library_markup)
+            for n, i in enumerate(db_ses.query(Books).filter(Books.user == user)):
+                update.message.reply_text(str(n + 1) + ' ' + i.title, reply_markup=library_markup)
+        else:
+            name = user.first_name
+            update.message.reply_text(name + ', ' + 'У вас пока нет книг...', reply_markup=library_markup)
+        return 1
     elif update.message.text == 'Удалить книгу':
         db_ses = db_session.create_session()
         user = db_ses.query(User).filter(User.id == update.effective_user.id).first()
@@ -81,8 +95,9 @@ def library_commands(update, context):
             message = '\n'.join(str(t.id) + ' ' + t.title for t in user.books)
             update.message.reply_text(message,
                                       reply_markup=ReplyKeyboardMarkup(
-                                          [[i.id for i in user.books[:len(list(user.books)) // 2]],
-                                           [i.id for i in user.books[len(list(user.books)) // 2:]],
+                                          [[i for i in range(1, len(list(user.books)) // 2 + 1)],
+                                           [i for i in
+                                            range(len(list(user.books)) // 2 + 1, len(list(user.books)) + 1)],
                                            ['Меню']], one_time_keyboard=False))
             return 3
         else:
@@ -126,19 +141,38 @@ def delete_book(update, context):
         back_to_menu(update, context)
         return ConversationHandler.END
     db_ses = db_session.create_session()
-    book = db_ses.query(Books).filter(Books.id == update.message.text).first()
+    user = db_ses.query(User).filter(User.id == update.effective_user.id).first()
+    book = user.books[int(update.message.text) - 1]
     db_ses.delete(book)
     db_ses.commit()
     update.message.reply_text('Книга успешно удалена', reply_markup=library_markup)
     return 1
 
 
-# Unknown message
+# ====================================================================================================================
+
+# Unknown message -----------------------------------------------------------------------------------------------------
 
 
 def unknown_message(update, context):
-    update.message.reply_text('Извините, я не понимаю Вас...',
+    update.message.reply_text('Извините, я не совсем понял Вас...',
                               reply_markup=main_markup)
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# ====================================================================================================================
+def get_skill(update, context):
+    message = '\n'.join([''.join(i.strip().split('Источник информации')) for i in parse_about_skill()])
+    try:
+        update.message.reply_text(message,
+                                  reply_markup=main_markup)
+    except Exception:
+        for i in parse_about_skill():
+            update.message.reply_text(''.join(i.strip().split('Источник информации')))
+        update.message.reply_text('Ты пополнил свои навыки!', reply_markup=main_markup)
+
+
+# ====================================================================================================================
 
 
 def main():
@@ -146,7 +180,7 @@ def main():
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
     dp.add_handler(CommandHandler('start', start))
-    conv_handler = ConversationHandler(
+    books_handler = ConversationHandler(
         entry_points=[MessageHandler(Filters.text('Мои книги'), library)],
         states={
             # Функция читает ответ на первый вопрос и задаёт второй.
@@ -158,7 +192,8 @@ def main():
 
         fallbacks=[MessageHandler(Filters.text, unknown_message)]
     )
-    dp.add_handler(conv_handler)
+    dp.add_handler(books_handler)
+    dp.add_handler(MessageHandler(Filters.text('Получить навык'), get_skill))
     dp.add_handler(MessageHandler(Filters.text, unknown_message))
     updater.start_polling()
     updater.idle()
