@@ -5,13 +5,12 @@ from data.books import Books
 from data.users import User
 from telegram import ReplyKeyboardMarkup
 
-from parser_wiki import parse_about_skill
-
-TOKEN = 'guest'
+from parse import parse_about_skill, parse_citaty, parse_pritchi
+from settings import TOKEN
 
 # All KeyBoards -------------------------------------------------------------------------------------------
 
-main_keyboard = [['Мои книги', 'Получить навык']]
+main_keyboard = [['Мои книги', 'Получить навык', 'Цитата'], ['Притча']]
 main_markup = ReplyKeyboardMarkup(main_keyboard, one_time_keyboard=False)
 
 library_keyboard = [['Добавить книгу', 'Посмотреть книги', 'Удалить книгу'],
@@ -160,7 +159,7 @@ def unknown_message(update, context):
 
 
 # --------------------------------------------------------------------------------------------------------------------
-# ====================================================================================================================
+# ==================================================GETSKILL===========================================================
 def get_skill(update, context):
     message = '\n'.join([''.join(i.strip().split('Источник информации')) for i in parse_about_skill()])
     try:
@@ -170,6 +169,26 @@ def get_skill(update, context):
         for i in parse_about_skill():
             update.message.reply_text(''.join(i.strip().split('Источник информации')))
         update.message.reply_text('Ты пополнил свои навыки!', reply_markup=main_markup)
+    update.message.reply_text('Навык был взят с ресурса WikiHow',
+                              reply_markup=main_markup)
+
+
+# ====================================================================================================================
+
+# ==================================================GETSKILL===========================================================
+def get_citaty(update, context):
+    update.message.reply_text(parse_citaty())
+    update.message.reply_text('Цитата была взята с ресурса Citaty.info',
+                              reply_markup=main_markup)
+
+
+# ====================================================================================================================
+
+# ==================================================Pritcha===========================================================
+def get_pritcha(update, context):
+    update.message.reply_text(parse_pritchi())
+    update.message.reply_text('Притча была взята с ресурса pritchi.ru',
+                              reply_markup=main_markup)
 
 
 # ====================================================================================================================
@@ -194,6 +213,8 @@ def main():
     )
     dp.add_handler(books_handler)
     dp.add_handler(MessageHandler(Filters.text('Получить навык'), get_skill))
+    dp.add_handler(MessageHandler(Filters.text('Цитата'), get_citaty))
+    dp.add_handler(MessageHandler(Filters.text('Притча'), get_pritcha))
     dp.add_handler(MessageHandler(Filters.text, unknown_message))
     updater.start_polling()
     updater.idle()
