@@ -6,7 +6,7 @@ from data.users import User
 from telegram import ReplyKeyboardMarkup
 
 from parse import parse_about_skill, parse_citaty, parse_pritchi
-from settings import TOKEN
+from setts import TOKEN
 
 # All KeyBoards -------------------------------------------------------------------------------------------
 
